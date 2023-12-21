@@ -1,0 +1,10 @@
+#EXAMPLE
+#[web]
+#tst-web01-lab.sudosysadmin.com
+#tst-web02-lab ansible_host=192.168.2.1
+
+#[db]
+#tst-db01-lab.sudosysadmin.com
+#tst-db02-lab.sudosysadmin.com
+#tst-db03-lab.sudosysadmin.com
+#tst-db04-lab.sudosysadmin.com

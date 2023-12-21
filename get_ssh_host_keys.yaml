@@ -1,0 +1,70 @@
+---
+- name: Create primary_known_hosts file
+  hosts: "{{ var_hosts }}" 
+  any_errors_fatal: true
+  become: false
+  vars:
+    rsafile: /etc/ansible/files/primary_known_hosts
+  vars_prompt:
+    - name: var_hosts
+      prompt: Enter hostgroup or FQDN (multiple comma-separate, capitalize DOMAIN portion)
+      private: false
+      default: "{{ hostlist|default('all') }}"
+
+  tasks:
+    - name: Create /etc/ansible/files directory if not exist
+      ansible.builtin.file:
+        path: "{{ name[:-20] }}"
+        state: directory
+      delegate_to: localhost
+      run_once: true
+
+    - name: Create "primary_known_hosts" file if not exist
+      file:
+        path: "{{ rsafile }}"
+        state: touch
+        modification_time: preserve
+        access_time: preserve
+      delegate_to: localhost
+      run_once: true
+
+    ## Update SSH host keys by way of 'inventory_hostname' if 'ansible_host' (IP address) var is not defined
+    - name: Refresh "known_hosts" by way of the "primary_known_hosts" file (inventory_hostname)
+      shell: "{{ item }}"
+      with_items:
+        # Remove old fingerprint if it exists
+        - "sed -i '/{{ inventory_hostname }}.*/d' {{ rsafile }}"
+        # Retrieve current fingerprint and append to primary file
+        - "ssh-keyscan {{ inventory_hostname }} >> {{ rsafile }}"
+      delegate_to: localhost
+      throttle: 1 # Required to avoid file writting issues
+      when: hostvars[inventory_hostname].ansible_host is not defined
+
+    ## Update SSH host keys by way of 'ansible_host' (IP address) when var is defined
+    - name: Refresh "known_hosts" by way of the "primary_known_hosts" file (ansible_host)
+      shell: "{{ item }}"
+      with_items:
+        # Remove old fingerprint if it exists
+        - "sed -i '/{{ ansible_host }}.*/d' {{ rsafile }}"
+        # Retrieve current fingerprint and append to primary file
+        - "ssh-keyscan {{ ansible_host }} >> {{ rsafile }}"
+      delegate_to: localhost
+      throttle: 1 # Required to avoid file writting issues
+      when: hostvars[inventory_hostname].ansible_host is defined
+
+   # Create .ssh directory if not exist
+    - name: Create .ssh directory if not exist
+      file:
+        path: ~/.ssh
+        state: directory
+        mode: '0755'
+      delegate_to: localhost
+      run_once: true
+
+   # Copy primary_known_hosts to user known_hosts
+    - name: Copy primary_known_hosts to user known_hosts
+      copy:
+        dest: ~/.ssh/known_hosts
+        src: "{{ rsafile }}"
+      delegate_to: localhost
+      run_once: true 
